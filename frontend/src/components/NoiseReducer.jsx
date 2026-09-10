@@ -3,12 +3,14 @@ import { useState } from "react";
 function NoiseReducer({ file, onCleanAudio }) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
+  const [completed, setCompleted] = useState(false);
 
   const handleRemoveNoise = async () => {
     if (!file || processing) return;
 
     setProcessing(true);
     setError("");
+    setCompleted(false);
 
     let audioContext = null;
     let audio = null;
@@ -21,10 +23,6 @@ function NoiseReducer({ file, onCleanAudio }) {
     const chunks = [];
 
     try {
-      // ==========================================
-      // 1. Load DeepFilterNet3
-      // ==========================================
-
       console.log("Loading DeepFilterNet3...");
 
       const module = await import(
@@ -40,10 +38,6 @@ function NoiseReducer({ file, onCleanAudio }) {
         );
       }
 
-      // ==========================================
-      // 2. Create AudioContext
-      // ==========================================
-
       audioContext = new AudioContext({
         sampleRate: 48000,
       });
@@ -56,15 +50,8 @@ function NoiseReducer({ file, onCleanAudio }) {
         audioContext.state
       );
 
-      // ==========================================
-      // 3. Create DeepFilterNet3
-      // ==========================================
-
       processor = new DeepFilterNet3Core({
         sampleRate: 48000,
-
-        // Start with 0.
-        // Suppression is set after initialization.
         noiseReductionLevel: 0,
 
         assetConfig: {
@@ -72,19 +59,11 @@ function NoiseReducer({ file, onCleanAudio }) {
         },
       });
 
-      // ==========================================
-      // 4. Load WASM + Model
-      // ==========================================
-
       await processor.initialize();
 
       console.log(
         "DeepFilterNet3 WASM + model loaded successfully."
       );
-
-      // ==========================================
-      // 5. Create AudioWorklet
-      // ==========================================
 
       console.log("Creating DeepFilter AudioWorklet...");
 
@@ -103,19 +82,11 @@ function NoiseReducer({ file, onCleanAudio }) {
         "DeepFilter AudioWorklet created."
       );
 
-      // ==========================================
-      // 6. Set Noise Reduction
-      // ==========================================
-
       processor.setSuppressionLevel(80);
 
       console.log(
         "Noise suppression level: 80"
       );
-
-      // ==========================================
-      // 7. Load Audio File
-      // ==========================================
 
       audio = new Audio();
 
@@ -142,41 +113,15 @@ function NoiseReducer({ file, onCleanAudio }) {
         "Audio file loaded successfully."
       );
 
-      // ==========================================
-      // 8. Create Audio Source
-      // ==========================================
-
       source =
         audioContext.createMediaElementSource(audio);
-
-      // ==========================================
-      // 9. Create Recording Destination
-      // ==========================================
 
       const destination =
         audioContext.createMediaStreamDestination();
 
-      // ==========================================
-      // AUDIO FLOW
-      //
-      // Audio File
-      //     ↓
-      // MediaElementSource
-      //     ↓
-      // DeepFilterNet3
-      //     ↓
-      // MediaStreamDestination
-      //     ↓
-      // MediaRecorder
-      // ==========================================
-
       source.connect(workletNode);
 
       workletNode.connect(destination);
-
-      // ==========================================
-      // 10. MediaRecorder
-      // ==========================================
 
       const mimeType =
         MediaRecorder.isTypeSupported(
@@ -215,19 +160,11 @@ function NoiseReducer({ file, onCleanAudio }) {
           };
         });
 
-      // ==========================================
-      // 11. Start Recording
-      // ==========================================
-
       recorder.start();
 
       console.log(
         "DeepFilterNet3 processing started."
       );
-
-      // ==========================================
-      // 12. Play Audio
-      // ==========================================
 
       const audioFinished =
         new Promise((resolve, reject) => {
@@ -246,19 +183,11 @@ function NoiseReducer({ file, onCleanAudio }) {
 
       await audioFinished;
 
-      // ==========================================
-      // 13. Stop Recording
-      // ==========================================
-
       if (recorder.state !== "inactive") {
         recorder.stop();
       }
 
       await recordingFinished;
-
-      // ==========================================
-      // 14. Check Output
-      // ==========================================
 
       if (chunks.length === 0) {
         throw new Error(
@@ -282,10 +211,6 @@ function NoiseReducer({ file, onCleanAudio }) {
         "bytes"
       );
 
-      // ==========================================
-      // 15. Create Clean File
-      // ==========================================
-
       const cleanFile = new File(
         [cleanBlob],
         "clean-voice.webm",
@@ -294,11 +219,9 @@ function NoiseReducer({ file, onCleanAudio }) {
         }
       );
 
-      // ==========================================
-      // 16. Send to Home.jsx
-      // ==========================================
-
       onCleanAudio(cleanFile);
+
+      setCompleted(true);
 
       console.log(
         "DeepFilterNet3 processing completed."
@@ -314,12 +237,11 @@ function NoiseReducer({ file, onCleanAudio }) {
           "AI noise removal failed."
       );
     } finally {
-      // ==========================================
-      // Cleanup
-      // ==========================================
-
       try {
-        if (recorder && recorder.state !== "inactive") {
+        if (
+          recorder &&
+          recorder.state !== "inactive"
+        ) {
           recorder.stop();
         }
       } catch (e) {
@@ -374,36 +296,316 @@ function NoiseReducer({ file, onCleanAudio }) {
   }
 
   return (
-    <div className="mt-6 w-full max-w-2xl">
-      <button
-        onClick={handleRemoveNoise}
-        disabled={processing}
-        className="w-full rounded-xl bg-blue-600 px-6 py-4 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {processing
-          ? "AI Removing Noise..."
-          : "Remove Noise with AI"}
-      </button>
+    <div className="relative mx-auto mt-8 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950/90 p-1 shadow-2xl shadow-blue-950/30 backdrop-blur-xl">
 
-      {processing && (
-        <div className="mt-4 rounded-xl bg-white p-4 text-center shadow">
-          <p className="font-medium text-gray-800">
-            AI is cleaning your voice...
-          </p>
+      {/* Animated Background Glow */}
+      <div className="pointer-events-none absolute -left-20 -top-20 h-60 w-60 rounded-full bg-blue-600/20 blur-3xl" />
 
-          <p className="mt-1 text-sm text-gray-500">
-            Please wait until processing is complete.
-          </p>
+      <div className="pointer-events-none absolute -bottom-20 -right-20 h-60 w-60 rounded-full bg-violet-600/20 blur-3xl" />
+
+      <div className="relative rounded-[22px] border border-white/10 bg-slate-900/90 p-6 sm:p-8">
+
+        {/* Header */}
+        <div className="mb-7 flex items-center justify-between">
+
+          <div className="flex items-center gap-4">
+
+            {/* AI Icon */}
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/20">
+
+              <div className="absolute inset-0 animate-pulse rounded-2xl bg-blue-400/20" />
+
+              <svg
+                className="relative h-7 w-7 text-white"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 3v18m4-15v12m4-8v4M8 6v12M4 9v6"
+                />
+              </svg>
+            </div>
+
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+                AI Noise Remover
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-400">
+                DeepFilterNet3 • Browser AI Processing
+              </p>
+            </div>
+          </div>
+
+          {/* AI Badge */}
+          <div className="hidden items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-300 sm:flex">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+            AI READY
+          </div>
         </div>
-      )}
 
-      {error && (
-        <div className="mt-4 rounded-xl bg-red-100 p-4">
-          <p className="font-medium text-red-700">
-            {error}
-          </p>
+        {/* Audio File Card */}
+        <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.06]">
+
+          <div className="flex items-center gap-4">
+
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10">
+              <svg
+                className="h-6 w-6 text-blue-400"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 18V5l12-2v13"
+                />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
+            </div>
+
+            <div className="min-w-0 flex-1">
+
+              <p className="truncate font-semibold text-white">
+                {file.name}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {(file.size / 1024 / 1024).toFixed(2)} MB
+                <span className="mx-2">•</span>
+                Ready for AI processing
+              </p>
+
+            </div>
+
+            <div className="hidden rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 sm:block">
+              Ready
+            </div>
+
+          </div>
         </div>
-      )}
+
+        {/* Processing Visualizer */}
+        {processing && (
+          <div className="mb-6 overflow-hidden rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] p-6">
+
+            <div className="mb-5 flex items-center justify-between">
+
+              <div>
+                <p className="font-semibold text-white">
+                  AI is cleaning your voice
+                </p>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Removing unwanted background noise...
+                </p>
+              </div>
+
+              {/* Spinner */}
+              <div className="h-9 w-9 animate-spin rounded-full border-2 border-blue-400/20 border-t-blue-400" />
+
+            </div>
+
+            {/* Sound Wave */}
+            <div className="flex h-12 items-center justify-center gap-1.5">
+
+              {[4, 8, 14, 22, 30, 18, 26, 12, 20, 32, 16, 28, 10, 24, 14, 30, 18, 8, 22, 12].map(
+                (height, index) => (
+                  <div
+                    key={index}
+                    className="w-1.5 animate-pulse rounded-full bg-blue-400"
+                    style={{
+                      height: `${height}px`,
+                      animationDelay: `${index * 70}ms`,
+                    }}
+                  />
+                )
+              )}
+
+            </div>
+
+            {/* Processing Steps */}
+            <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] sm:text-xs">
+
+              <div className="rounded-lg bg-white/[0.04] p-2 text-blue-300">
+                ✓ Analyze Audio
+              </div>
+
+              <div className="rounded-lg bg-blue-500/10 p-2 text-blue-300">
+                ● Remove Noise
+              </div>
+
+              <div className="rounded-lg bg-white/[0.04] p-2 text-slate-500">
+                ○ Generate Voice
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* Success */}
+        {completed && !processing && (
+          <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.07] p-5">
+
+            <div className="flex items-center gap-4">
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/15">
+
+                <svg
+                  className="h-6 w-6 text-emerald-400"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m5 12 4 4L19 6"
+                  />
+                </svg>
+
+              </div>
+
+              <div>
+                <p className="font-semibold text-emerald-300">
+                  Noise removed successfully
+                </p>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Your cleaned voice is ready.
+                </p>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/[0.07] p-5">
+
+            <div className="flex gap-4">
+
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3Z"
+                  />
+                </svg>
+
+              </div>
+
+              <div>
+                <p className="font-semibold text-red-300">
+                  Noise removal failed
+                </p>
+
+                <p className="mt-1 break-words text-sm text-red-300/70">
+                  {error}
+                </p>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Main Button */}
+        <button
+          onClick={handleRemoveNoise}
+          disabled={processing}
+          className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-6 py-4 font-bold text-white shadow-xl shadow-blue-950/30 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-blue-900/40 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+        >
+
+          {/* Button Shine */}
+          {!processing && (
+            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
+          )}
+
+          <span className="relative flex items-center justify-center gap-3">
+
+            {processing ? (
+              <>
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Processing Audio...
+              </>
+            ) : completed ? (
+              <>
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m5 12 4 4L19 6"
+                  />
+                </svg>
+
+                Process Again
+              </>
+            ) : (
+              <>
+                <svg
+                  className="h-5 w-5 transition-transform duration-300 group-hover:scale-110"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 3v18m4-15v12m4-8v4M8 6v12M4 9v6"
+                  />
+                </svg>
+
+                Remove Noise with AI
+              </>
+            )}
+
+          </span>
+        </button>
+
+        {/* Footer Info */}
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-500">
+
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Runs in your browser
+          </span>
+
+          <span>•</span>
+
+          <span>DeepFilterNet3 AI</span>
+
+          <span>•</span>
+
+          <span>48 kHz Processing</span>
+
+        </div>
+
+      </div>
     </div>
   );
 }
