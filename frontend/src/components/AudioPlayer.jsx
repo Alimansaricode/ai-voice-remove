@@ -4,20 +4,104 @@ function AudioPlayer({ file }) {
   const audioUrl = URL.createObjectURL(file);
 
   return (
-    <div className="mt-6 w-full max-w-2xl rounded-2xl bg-white p-6 shadow">
-      <h3 className="mb-3 font-semibold text-gray-800">
-        Original Audio
-      </h3>
+    <div className="relative mx-auto mt-6 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950/90 p-1 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
 
-      <p className="mb-4 text-sm text-gray-500">
-        {file.name}
-      </p>
+      {/* Background Glow */}
+      <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-blue-600/10 blur-3xl" />
 
-      <audio
-        controls
-        src={audioUrl}
-        className="w-full"
-      />
+      <div className="relative rounded-[22px] border border-white/10 bg-slate-900/90 p-6 sm:p-7">
+
+        {/* Header */}
+        <div className="mb-5 flex items-center justify-between">
+
+          <div className="flex items-center gap-4">
+
+            {/* Audio Icon */}
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
+              <svg
+                className="h-6 w-6 text-blue-400"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 18V5l12-2v13"
+                />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
+            </div>
+
+            <div>
+              <h3 className="font-bold text-white sm:text-lg">
+                Original Audio
+              </h3>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Your uploaded voice
+              </p>
+            </div>
+
+          </div>
+
+          {/* Badge */}
+          <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-400 sm:block">
+            ORIGINAL
+          </span>
+
+        </div>
+
+        {/* File Information */}
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+
+          <div className="h-2 w-2 rounded-full bg-blue-400 shadow-lg shadow-blue-400/50" />
+
+          <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-300">
+            {file.name}
+          </p>
+
+          <span className="shrink-0 text-xs text-slate-500">
+            {(file.size / 1024 / 1024).toFixed(2)} MB
+          </span>
+
+        </div>
+
+        {/* Audio Player */}
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+
+          <audio
+            controls
+            src={audioUrl}
+            className="w-full"
+          />
+
+        </div>
+
+        {/* Info */}
+        <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
+
+          <svg
+            className="h-4 w-4 text-blue-400"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 3v18m4-15v12m4-8v4M8 6v12M4 9v6"
+            />
+          </svg>
+
+          Listen to your original recording before AI enhancement
+
+        </div>
+
+      </div>
     </div>
   );
 }

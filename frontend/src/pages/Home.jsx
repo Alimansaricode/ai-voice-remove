@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import UploadBox from "../components/UploadBox";
 import AudioPlayer from "../components/AudioPlayer";
 import NoiseReducer from "../components/NoiseReducer";
-
+import Navbar from "../components/Navbar";
+import about from "./About";
 function Home() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [cleanAudio, setCleanAudio] = useState(null);
@@ -46,32 +47,116 @@ function Home() {
   }, [cleanAudio]);
 
   return (
-    <main className="min-h-screen bg-gray-100 px-4 py-16">
-      <div className="mx-auto flex max-w-4xl flex-col items-center">
+<>
+    <Navbar />
+    <about/>
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-16 text-white sm:py-20">
 
-        {/* Heading */}
-        <h1 className="text-center text-5xl font-bold text-gray-900">
-          AI Voice
-        </h1>
+      {/* =========================================
+          Background
+      ========================================== */}
 
-        <p className="mt-4 text-center text-lg text-gray-600">
-          Remove background noise from your voice
-        </p>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
 
-        <p className="mt-2 text-center text-gray-500">
-          Upload your audio and make your voice cleaner.
-        </p>
+        <div className="absolute left-1/2 top-[-180px] h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-blue-600/10 blur-[120px]" />
 
-        {/* Upload */}
-        <div className="mt-10 w-full flex justify-center">
-          <UploadBox onFileSelect={handleFileSelect} />
+        <div className="absolute left-[-150px] top-[40%] h-[400px] w-[400px] rounded-full bg-violet-600/10 blur-[120px]" />
+
+        <div className="absolute bottom-[-150px] right-[-100px] h-[400px] w-[400px] rounded-full bg-blue-500/10 blur-[120px]" />
+
+      </div>
+
+      <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center">
+
+        {/* =========================================
+            Hero Section
+        ========================================== */}
+
+        <div className="mb-10 text-center">
+
+          {/* AI Badge */}
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-300">
+
+            <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+
+            AI POWERED VOICE ENHANCEMENT
+
+          </div>
+
+          {/* Heading */}
+          <h1 className="text-5xl font-black tracking-tight sm:text-6xl lg:text-7xl">
+
+            Clean Your{" "}
+
+            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent">
+              Voice
+            </span>
+
+          </h1>
+
+          {/* Description */}
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
+
+            Remove unwanted background noise and make your
+            voice clearer with AI-powered audio processing.
+
+          </p>
+
+          {/* Small Features */}
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-slate-400">
+              🎙️ AI Noise Removal
+            </span>
+
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-slate-400">
+              ⚡ Fast Processing
+            </span>
+
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-slate-400">
+              🔒 Browser Processing
+            </span>
+
+          </div>
+
         </div>
 
-        {/* Original Audio */}
-        {selectedFile && (
-          <div className="w-full flex flex-col items-center">
+        {/* =========================================
+            Upload Section
+        ========================================== */}
 
-            <AudioPlayer file={selectedFile} />
+        <div className="w-full">
+
+          <UploadBox
+            onFileSelect={handleFileSelect}
+          />
+
+        </div>
+
+        {/* =========================================
+            Audio Processing Section
+        ========================================== */}
+
+        {selectedFile && (
+          <div className="mt-8 flex w-full flex-col items-center">
+
+            {/* Section Divider */}
+            <div className="mb-2 flex w-full max-w-3xl items-center gap-4">
+
+              <div className="h-px flex-1 bg-white/10" />
+
+              <span className="text-xs font-medium uppercase tracking-widest text-slate-600">
+                Audio Processing
+              </span>
+
+              <div className="h-px flex-1 bg-white/10" />
+
+            </div>
+
+            {/* Original Audio */}
+            <AudioPlayer
+              file={selectedFile}
+            />
 
             {/* Noise Reducer */}
             <NoiseReducer
@@ -82,67 +167,256 @@ function Home() {
           </div>
         )}
 
-        {/* Clean Audio */}
+        {/* =========================================
+            Clean Audio
+        ========================================== */}
+
         {cleanAudio && cleanUrl && (
-          <div className="mt-10 w-full max-w-2xl">
+          <div className="mt-10 w-full max-w-3xl">
 
-            {/* Success message */}
-            <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 text-center">
-              <p className="font-semibold text-green-700">
-                ✓ Noise reduction completed
-              </p>
+            {/* Success Banner */}
+            <div className="mb-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.06] p-5">
 
-              <p className="mt-1 text-sm text-green-600">
-                Your cleaned audio is ready.
-              </p>
-            </div>
+              <div className="flex items-center gap-4">
 
-            {/* Clean Audio Card */}
-            <div className="rounded-2xl bg-white p-6 shadow-lg">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
 
-              <div className="mb-4 flex items-center justify-between">
+                  <svg
+                    className="h-6 w-6 text-emerald-400"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m5 12 4 4L19 6"
+                    />
+                  </svg>
 
-                <h2 className="text-xl font-bold text-gray-800">
-                  Clean Audio
-                </h2>
+                </div>
 
-                <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">
-                  Cleaned
-                </span>
+                <div>
+
+                  <p className="font-semibold text-emerald-300">
+                    AI Noise Removal Complete
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-400">
+                    Your voice has been successfully processed.
+                  </p>
+
+                </div>
 
               </div>
 
-              <audio
-                controls
-                src={cleanUrl}
-                className="w-full"
-              />
+            </div>
 
-              {/* Download */}
-              <a
-                href={cleanUrl}
-                download="clean-voice.wav"
-                className="mt-5 block w-full rounded-xl bg-green-600 px-6 py-3 text-center font-semibold text-white transition hover:bg-green-700"
-              >
-                Download Clean Audio
-              </a>
+            {/* Clean Audio Card */}
+            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 p-1 shadow-2xl shadow-blue-950/20">
 
+              {/* Glow */}
+              <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl" />
+
+              <div className="relative rounded-[22px] border border-white/10 bg-slate-900/80 p-6 sm:p-7">
+
+                {/* Header */}
+                <div className="mb-5 flex items-center justify-between">
+
+                  <div className="flex items-center gap-4">
+
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10">
+
+                      <svg
+                        className="h-6 w-6 text-emerald-400"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 18V5l12-2v13"
+                        />
+
+                        <circle
+                          cx="6"
+                          cy="18"
+                          r="3"
+                        />
+
+                        <circle
+                          cx="18"
+                          cy="16"
+                          r="3"
+                        />
+                      </svg>
+
+                    </div>
+
+                    <div>
+
+                      <h2 className="font-bold text-white sm:text-lg">
+                        Clean Audio
+                      </h2>
+
+                      <p className="mt-1 text-xs text-slate-500">
+                        AI enhanced voice
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                  {/* Clean Badge */}
+                  <span className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
+
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
+                    CLEANED
+
+                  </span>
+
+                </div>
+
+                {/* File Name */}
+                <div className="mb-5 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+
+                  <div className="h-2 w-2 rounded-full bg-emerald-400" />
+
+                  <p className="min-w-0 flex-1 truncate text-sm text-slate-300">
+                    clean-voice.webm
+                  </p>
+
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {(cleanAudio.size / 1024 / 1024).toFixed(2)} MB
+                  </span>
+
+                </div>
+
+                {/* Audio Player */}
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+
+                  <audio
+                    controls
+                    src={cleanUrl}
+                    className="w-full"
+                  />
+
+                </div>
+
+                {/* Download */}
+                <a
+                  href={cleanUrl}
+                  download="clean-voice.webm"
+                  className="group mt-5 flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 font-semibold text-white shadow-lg shadow-emerald-950/20 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-900/30"
+                >
+
+                  <svg
+                    className="h-5 w-5 transition-transform duration-300 group-hover:translate-y-0.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"
+                    />
+                  </svg>
+
+                  Download Clean Audio
+
+                </a>
+
+              </div>
             </div>
 
             {/* Process Again */}
             <button
-              onClick={() => setCleanAudio(null)}
-              className="mt-4 w-full rounded-xl border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-50"
+              onClick={() => {
+                setCleanAudio(null);
+              }}
+              className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.03] px-6 py-3 font-semibold text-slate-400 transition duration-300 hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
             >
-              Process Again
+              Process Another Audio
             </button>
 
           </div>
         )}
 
+        {/* =========================================
+            Bottom Features
+        ========================================== */}
+
+        <div className="mt-16 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
+
+          {/* Feature 1 */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center backdrop-blur transition hover:-translate-y-1 hover:bg-white/[0.05]">
+
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-lg">
+              ⚡
+            </div>
+
+            <h3 className="font-semibold text-white">
+              Fast
+            </h3>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Process your audio directly in the browser.
+            </p>
+
+          </div>
+
+          {/* Feature 2 */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center backdrop-blur transition hover:-translate-y-1 hover:bg-white/[0.05]">
+
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-lg">
+              🧠
+            </div>
+
+            <h3 className="font-semibold text-white">
+              AI Powered
+            </h3>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              DeepFilterNet3 helps reduce unwanted noise.
+            </p>
+
+          </div>
+
+          {/* Feature 3 */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center backdrop-blur transition hover:-translate-y-1 hover:bg-white/[0.05]">
+
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-lg">
+              🔒
+            </div>
+
+            <h3 className="font-semibold text-white">
+              Private
+            </h3>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Audio processing happens on your device.
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* Footer Text */}
+        <p className="mt-10 text-center text-xs text-slate-600">
+          Powered by DeepFilterNet3 • AI Voice Enhancement
+        </p>
+
       </div>
     </main>
+    </>
   );
+  
 }
 
 export default Home;
