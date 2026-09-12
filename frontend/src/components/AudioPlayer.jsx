@@ -1,22 +1,37 @@
-function AudioPlayer({ file }) {
-  if (!file) return null;
+import { useEffect, useState } from "react";
 
-  const audioUrl = URL.createObjectURL(file);
+function AudioPlayer({ file }) {
+  const [audioUrl, setAudioUrl] = useState(null);
+
+  useEffect(() => {
+    if (!file) {
+      setAudioUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    setAudioUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+
+  if (!file || !audioUrl) return null;
+
+  const isVideo = file.type.startsWith("video/");
 
   return (
     <div className="relative mx-auto mt-6 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950/90 p-1 shadow-2xl shadow-blue-950/20 backdrop-blur-xl">
 
-      {/* Background Glow */}
       <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-blue-600/10 blur-3xl" />
 
       <div className="relative rounded-[22px] border border-white/10 bg-slate-900/90 p-6 sm:p-7">
 
-        {/* Header */}
         <div className="mb-5 flex items-center justify-between">
 
           <div className="flex items-center gap-4">
 
-            {/* Audio Icon */}
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
               <svg
                 className="h-6 w-6 text-blue-400"
@@ -37,24 +52,22 @@ function AudioPlayer({ file }) {
 
             <div>
               <h3 className="font-bold text-white sm:text-lg">
-                Original Audio
+                Original {isVideo ? "Video" : "Audio"}
               </h3>
 
               <p className="mt-1 text-xs text-slate-500">
-                Your uploaded voice
+                Your uploaded {isVideo ? "video" : "voice"}
               </p>
             </div>
 
           </div>
 
-          {/* Badge */}
           <span className="hidden rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-400 sm:block">
             ORIGINAL
           </span>
 
         </div>
 
-        {/* File Information */}
         <div className="mb-5 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
 
           <div className="h-2 w-2 rounded-full bg-blue-400 shadow-lg shadow-blue-400/50" />
@@ -69,18 +82,24 @@ function AudioPlayer({ file }) {
 
         </div>
 
-        {/* Audio Player */}
         <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
 
-          <audio
-            controls
-            src={audioUrl}
-            className="w-full"
-          />
+          {isVideo ? (
+            <video
+              controls
+              src={audioUrl}
+              className="max-h-[420px] w-full rounded-xl"
+            />
+          ) : (
+            <audio
+              controls
+              src={audioUrl}
+              className="w-full"
+            />
+          )}
 
         </div>
 
-        {/* Info */}
         <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
 
           <svg

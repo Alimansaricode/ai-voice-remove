@@ -13,17 +13,27 @@ function NoiseReducer({ file, onCleanAudio }) {
     setCompleted(false);
 
     let audioContext = null;
-    let audio = null;
-    let audioUrl = null;
+    let mediaElement = null;
+    let mediaUrl = null;
     let source = null;
     let workletNode = null;
+    let destination = null;
     let processor = null;
     let recorder = null;
 
     const chunks = [];
 
     try {
+      console.log("=================================");
       console.log("Loading DeepFilterNet3...");
+      console.log("File:", file.name);
+      console.log("Type:", file.type);
+      console.log("Size:", file.size);
+      console.log("=================================");
+
+      // =====================================================
+      // 1. Load DeepFilterNet3
+      // =====================================================
 
       const module = await import(
         /* @vite-ignore */
@@ -38,26 +48,45 @@ function NoiseReducer({ file, onCleanAudio }) {
         );
       }
 
+      console.log("DeepFilterNet3 module loaded.");
+
+      // =====================================================
+      // 2. Create AudioContext
+      // =====================================================
+
       audioContext = new AudioContext({
         sampleRate: 48000,
       });
 
-      await audioContext.resume();
-
       console.log(
-        "AudioContext:",
+        "AudioContext created:",
         audioContext.sampleRate,
         audioContext.state
       );
 
+      if (audioContext.state !== "running") {
+        await audioContext.resume();
+      }
+
+      console.log(
+        "AudioContext running:",
+        audioContext.state
+      );
+
+      // =====================================================
+      // 3. Create DeepFilterNet3
+      // =====================================================
+
       processor = new DeepFilterNet3Core({
         sampleRate: 48000,
-        noiseReductionLevel: 0,
+        noiseReductionLevel: 80,
 
         assetConfig: {
           cdnUrl: `${window.location.origin}/deepfilternet`,
         },
       });
+
+      console.log("Initializing DeepFilterNet3...");
 
       await processor.initialize();
 
@@ -65,7 +94,13 @@ function NoiseReducer({ file, onCleanAudio }) {
         "DeepFilterNet3 WASM + model loaded successfully."
       );
 
-      console.log("Creating DeepFilter AudioWorklet...");
+      // =====================================================
+      // 4. Create AudioWorklet
+      // =====================================================
+
+      console.log(
+        "Creating DeepFilter AudioWorklet..."
+      );
 
       workletNode =
         await processor.createAudioWorkletNode(
@@ -79,56 +114,246 @@ function NoiseReducer({ file, onCleanAudio }) {
       }
 
       console.log(
-        "DeepFilter AudioWorklet created."
+        "DeepFilter AudioWorklet created successfully."
       );
+
+      // =====================================================
+      // 5. Set Noise Suppression
+      // =====================================================
 
       processor.setSuppressionLevel(80);
 
       console.log(
-        "Noise suppression level: 80"
+        "Noise suppression level:",
+        80
       );
 
-      audio = new Audio();
+      // =====================================================
+      // 6. Detect Audio / Video
+      // =====================================================
 
-      audioUrl = URL.createObjectURL(file);
+      const isVideo = file.type.startsWith("video/");
 
-      audio.src = audioUrl;
-      audio.preload = "auto";
+      console.log(
+        "Media type:",
+        isVideo ? "VIDEO" : "AUDIO"
+      );
+
+      // =====================================================
+      // 7. Create Internal Media Element
+      // =====================================================
+
+      mediaElement = document.createElement(
+        isVideo ? "video" : "audio"
+      );
+
+      mediaUrl = URL.createObjectURL(file);
+
+      mediaElement.src = mediaUrl;
+      mediaElement.preload = "auto";
+
+      if (isVideo) {
+        mediaElement.playsInline = true;
+      }
+
+      /*
+       * IMPORTANT:
+       *
+       * We DO NOT connect the media source to
+       * audioContext.destination.
+       *
+       * Therefore the internal processing media
+       * will not play through the speaker.
+       *
+       * Do NOT use:
+       *
+       * mediaElement.muted = true;
+       * mediaElement.volume = 0;
+       *
+       * because we want the Web Audio graph to
+       * receive the actual audio signal.
+       */
+
+      // =====================================================
+      // 8. Wait Until Media Is Loaded
+      // =====================================================
 
       await new Promise((resolve, reject) => {
-        audio.oncanplay = resolve;
+        let finished = false;
 
-        audio.onerror = () => {
+        const cleanup = () => {
+          mediaElement.removeEventListener(
+            "loadedmetadata",
+            handleLoaded
+          );
+
+          mediaElement.removeEventListener(
+            "canplay",
+            handleCanPlay
+          );
+
+          mediaElement.removeEventListener(
+            "error",
+            handleError
+          );
+        };
+
+        const handleLoaded = () => {
+          if (finished) return;
+
+          finished = true;
+          cleanup();
+
+          console.log(
+            "Media metadata loaded."
+          );
+
+          resolve();
+        };
+
+        const handleCanPlay = () => {
+          if (finished) return;
+
+          finished = true;
+          cleanup();
+
+          console.log(
+            "Media can play."
+          );
+
+          resolve();
+        };
+
+        const handleError = () => {
+          if (finished) return;
+
+          finished = true;
+          cleanup();
+
           reject(
             new Error(
-              "Unable to load the uploaded audio file."
+              "Unable to load the uploaded audio/video file."
             )
           );
         };
 
-        audio.load();
+        mediaElement.addEventListener(
+          "loadedmetadata",
+          handleLoaded
+        );
+
+        mediaElement.addEventListener(
+          "canplay",
+          handleCanPlay
+        );
+
+        mediaElement.addEventListener(
+          "error",
+          handleError
+        );
+
+        mediaElement.load();
       });
 
       console.log(
-        "Audio file loaded successfully."
+        "Media loaded successfully."
       );
 
-      source =
-        audioContext.createMediaElementSource(audio);
+      console.log(
+        "Duration:",
+        mediaElement.duration,
+        "seconds"
+      );
 
-      const destination =
+      // =====================================================
+      // 9. Create MediaElementSource
+      // =====================================================
+
+      source =
+        audioContext.createMediaElementSource(
+          mediaElement
+        );
+
+      console.log(
+        "MediaElementSource created."
+      );
+
+      // =====================================================
+      // 10. Create Recording Destination
+      // =====================================================
+
+      destination =
         audioContext.createMediaStreamDestination();
+
+      console.log(
+        "MediaStreamDestination created."
+      );
+
+      // =====================================================
+      // 11. Connect Audio Pipeline
+      //
+      // Media Element
+      //      ↓
+      // MediaElementSource
+      //      ↓
+      // DeepFilter AudioWorklet
+      //      ↓
+      // MediaStreamDestination
+      //      ↓
+      // MediaRecorder
+      //
+      // IMPORTANT:
+      //
+      // We DO NOT connect:
+      //
+      // workletNode → audioContext.destination
+      //
+      // So processed audio is not played
+      // through the speaker.
+      // =====================================================
 
       source.connect(workletNode);
 
       workletNode.connect(destination);
 
-      const mimeType =
-        MediaRecorder.isTypeSupported(
-          "audio/webm;codecs=opus"
-        )
-          ? "audio/webm;codecs=opus"
-          : "audio/webm";
+      console.log(
+        "Audio processing pipeline connected."
+      );
+
+      // =====================================================
+      // 12. Check MediaRecorder Format
+      // =====================================================
+
+      let mimeType = "";
+
+      const supportedTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+
+      for (const type of supportedTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          break;
+        }
+      }
+
+      if (!mimeType) {
+        throw new Error(
+          "Your browser does not support a suitable audio recording format."
+        );
+      }
+
+      console.log(
+        "MediaRecorder MIME type:",
+        mimeType
+      );
+
+      // =====================================================
+      // 13. Create MediaRecorder
+      // =====================================================
 
       recorder = new MediaRecorder(
         destination.stream,
@@ -143,93 +368,248 @@ function NoiseReducer({ file, onCleanAudio }) {
           event.data.size > 0
         ) {
           chunks.push(event.data);
+
+          console.log(
+            "Recorded chunk:",
+            event.data.size,
+            "bytes"
+          );
         }
       };
 
       const recordingFinished =
         new Promise((resolve, reject) => {
-          recorder.onstop = resolve;
+          recorder.onstop = () => {
+            console.log(
+              "MediaRecorder stopped."
+            );
+
+            resolve();
+          };
 
           recorder.onerror = (event) => {
             reject(
               event.error ||
                 new Error(
-                  "Audio recording failed."
+                  "MediaRecorder error."
                 )
             );
           };
         });
 
-      recorder.start();
+      // =====================================================
+      // 14. Start Recorder
+      // =====================================================
+
+      recorder.start(250);
+
+      console.log(
+        "MediaRecorder started."
+      );
 
       console.log(
         "DeepFilterNet3 processing started."
       );
 
-      const audioFinished =
-        new Promise((resolve, reject) => {
-          audio.onended = resolve;
+      // =====================================================
+      // 15. Wait For Media To End
+      // =====================================================
 
-          audio.onerror = () => {
+      const mediaFinished =
+        new Promise((resolve, reject) => {
+          const handleEnded = () => {
+            cleanup();
+
+            console.log(
+              "Media playback ended."
+            );
+
+            resolve();
+          };
+
+          const handleError = () => {
+            cleanup();
+
             reject(
               new Error(
-                "Audio playback failed."
+                "Media playback failed during processing."
               )
             );
           };
+
+          const cleanup = () => {
+            mediaElement.removeEventListener(
+              "ended",
+              handleEnded
+            );
+
+            mediaElement.removeEventListener(
+              "error",
+              handleError
+            );
+          };
+
+          mediaElement.addEventListener(
+            "ended",
+            handleEnded
+          );
+
+          mediaElement.addEventListener(
+            "error",
+            handleError
+          );
         });
 
-      await audio.play();
+      // =====================================================
+      // 16. Start Processing
+      // =====================================================
 
-      await audioFinished;
+      try {
+        await mediaElement.play();
+      } catch (playError) {
+        throw new Error(
+          `Unable to start media processing: ${playError.message}`
+        );
+      }
 
-      if (recorder.state !== "inactive") {
+      console.log(
+        "Internal media playback started."
+      );
+
+      await mediaFinished;
+
+      // =====================================================
+      // 17. Give AudioWorklet Time To Flush
+      // =====================================================
+
+      /*
+       * DeepFilter has an internal frame/ring buffer.
+       *
+       * If recorder.stop() happens immediately when
+       * media ends, the last processed frames can be lost.
+       *
+       * Give the Web Audio graph a little time to finish.
+       */
+
+      console.log(
+        "Waiting for DeepFilter output buffer..."
+      );
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1000);
+      });
+
+      console.log(
+        "Stopping recorder..."
+      );
+
+      // =====================================================
+      // 18. Stop Recorder
+      // =====================================================
+
+      if (
+        recorder &&
+        recorder.state !== "inactive"
+      ) {
         recorder.stop();
       }
 
       await recordingFinished;
 
-      if (chunks.length === 0) {
-        throw new Error(
-          "DeepFilterNet3 did not produce any audio output."
-        );
-      }
-
-      const cleanBlob = new Blob(chunks, {
-        type: mimeType,
-      });
-
-      if (cleanBlob.size === 0) {
-        throw new Error(
-          "Cleaned audio file is empty."
-        );
-      }
+      // =====================================================
+      // 19. Validate Chunks
+      // =====================================================
 
       console.log(
-        "Cleaned audio generated:",
-        cleanBlob.size,
-        "bytes"
+        "Total recorded chunks:",
+        chunks.length
       );
 
-      const cleanFile = new File(
-        [cleanBlob],
-        "clean-voice.webm",
+      if (chunks.length === 0) {
+        throw new Error(
+          "No processed audio was produced."
+        );
+      }
+
+      // =====================================================
+      // 20. Create Clean Blob
+      // =====================================================
+
+      const cleanBlob = new Blob(
+        chunks,
         {
           type: mimeType,
         }
       );
+
+      console.log(
+        "Clean audio generated:",
+        cleanBlob.size,
+        "bytes"
+      );
+
+      if (cleanBlob.size === 0) {
+        throw new Error(
+          "The processed audio file is empty."
+        );
+      }
+
+      // =====================================================
+      // 21. Create Clean File
+      // =====================================================
+
+      const extension =
+        mimeType.includes("ogg")
+          ? "ogg"
+          : "webm";
+
+      const cleanFile = new File(
+        [cleanBlob],
+        `clean-voice.${extension}`,
+        {
+          type: mimeType,
+        }
+      );
+
+      console.log(
+        "Clean audio file created:",
+        cleanFile.name,
+        cleanFile.size,
+        "bytes"
+      );
+
+      // =====================================================
+      // 22. Send To Home.jsx
+      // =====================================================
 
       onCleanAudio(cleanFile);
 
       setCompleted(true);
 
       console.log(
+        "================================="
+      );
+
+      console.log(
         "DeepFilterNet3 processing completed."
+      );
+
+      console.log(
+        "================================="
       );
     } catch (err) {
       console.error(
-        "DeepFilterNet3 noise removal failed:",
-        err
+        "================================="
+      );
+
+      console.error(
+        "DeepFilterNet3 noise removal failed:"
+      );
+
+      console.error(err);
+
+      console.error(
+        "================================="
       );
 
       setError(
@@ -237,6 +617,10 @@ function NoiseReducer({ file, onCleanAudio }) {
           "AI noise removal failed."
       );
     } finally {
+      // =====================================================
+      // Cleanup Recorder
+      // =====================================================
+
       try {
         if (
           recorder &&
@@ -251,39 +635,117 @@ function NoiseReducer({ file, onCleanAudio }) {
         );
       }
 
-      try {
-        if (audio) {
-          audio.pause();
-          audio.removeAttribute("src");
-          audio.load();
-        }
+      // =====================================================
+      // Cleanup Media
+      // =====================================================
 
+      try {
+        if (mediaElement) {
+          mediaElement.pause();
+
+          mediaElement.removeAttribute(
+            "src"
+          );
+
+          mediaElement.load();
+        }
+      } catch (e) {
+        console.error(
+          "Media cleanup error:",
+          e
+        );
+      }
+
+      // =====================================================
+      // Disconnect Source
+      // =====================================================
+
+      try {
         if (source) {
           source.disconnect();
         }
+      } catch (e) {
+        console.error(
+          "Source disconnect error:",
+          e
+        );
+      }
 
+      // =====================================================
+      // Disconnect Worklet
+      // =====================================================
+
+      try {
         if (workletNode) {
           workletNode.disconnect();
         }
+      } catch (e) {
+        console.error(
+          "Worklet disconnect error:",
+          e
+        );
+      }
 
+      // =====================================================
+      // Disconnect Destination
+      // =====================================================
+
+      try {
+        if (destination) {
+          destination.disconnect();
+        }
+      } catch (e) {
+        console.error(
+          "Destination cleanup error:",
+          e
+        );
+      }
+
+      // =====================================================
+      // Destroy DeepFilter
+      // =====================================================
+
+      try {
         if (processor) {
           processor.destroy();
         }
+      } catch (e) {
+        console.error(
+          "DeepFilter destroy error:",
+          e
+        );
+      }
 
+      // =====================================================
+      // Close AudioContext
+      // =====================================================
+
+      try {
         if (
           audioContext &&
           audioContext.state !== "closed"
         ) {
           await audioContext.close();
         }
-
-        if (audioUrl) {
-          URL.revokeObjectURL(audioUrl);
-        }
-      } catch (cleanupError) {
+      } catch (e) {
         console.error(
-          "Cleanup error:",
-          cleanupError
+          "AudioContext close error:",
+          e
+        );
+      }
+
+      // =====================================================
+      // Revoke Object URL
+      // =====================================================
+
+      try {
+        if (mediaUrl) {
+          URL.revokeObjectURL(mediaUrl);
+        }
+      } catch (e) {
+        console.error(
+          "Object URL cleanup error:",
+          e
         );
       }
 
@@ -291,14 +753,23 @@ function NoiseReducer({ file, onCleanAudio }) {
     }
   };
 
+  // =======================================================
+  // No File
+  // =======================================================
+
   if (!file) {
     return null;
   }
 
+  const isVideo = file.type.startsWith("video/");
+
+  // =======================================================
+  // UI
+  // =======================================================
+
   return (
     <div className="relative mx-auto mt-8 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950/90 p-1 shadow-2xl shadow-blue-950/30 backdrop-blur-xl">
 
-      {/* Animated Background Glow */}
       <div className="pointer-events-none absolute -left-20 -top-20 h-60 w-60 rounded-full bg-blue-600/20 blur-3xl" />
 
       <div className="pointer-events-none absolute -bottom-20 -right-20 h-60 w-60 rounded-full bg-violet-600/20 blur-3xl" />
@@ -306,17 +777,15 @@ function NoiseReducer({ file, onCleanAudio }) {
       <div className="relative rounded-[22px] border border-white/10 bg-slate-900/90 p-6 sm:p-8">
 
         {/* Header */}
+
         <div className="mb-7 flex items-center justify-between">
 
           <div className="flex items-center gap-4">
 
-            {/* AI Icon */}
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-500/20">
-
-              <div className="absolute inset-0 animate-pulse rounded-2xl bg-blue-400/20" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600">
 
               <svg
-                className="relative h-7 w-7 text-white"
+                className="h-7 w-7 text-white"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.8"
@@ -328,47 +797,41 @@ function NoiseReducer({ file, onCleanAudio }) {
                   d="M12 3v18m4-15v12m4-8v4M8 6v12M4 9v6"
                 />
               </svg>
+
             </div>
 
             <div>
-              <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+
+              <h2 className="text-xl font-bold text-white sm:text-2xl">
                 AI Noise Remover
               </h2>
 
               <p className="mt-1 text-sm text-slate-400">
                 DeepFilterNet3 • Browser AI Processing
               </p>
+
             </div>
+
           </div>
 
-          {/* AI Badge */}
-          <div className="hidden items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-300 sm:flex">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+          <div className="hidden rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-semibold text-blue-300 sm:block">
             AI READY
           </div>
+
         </div>
 
-        {/* Audio File Card */}
-        <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.06]">
+        {/* File */}
+
+        <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
 
           <div className="flex items-center gap-4">
 
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10">
-              <svg
-                className="h-6 w-6 text-blue-400"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 18V5l12-2v13"
-                />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
-              </svg>
+
+              <span className="text-xl">
+                {isVideo ? "🎬" : "🎵"}
+              </span>
+
             </div>
 
             <div className="min-w-0 flex-1">
@@ -378,72 +841,47 @@ function NoiseReducer({ file, onCleanAudio }) {
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
+
                 {(file.size / 1024 / 1024).toFixed(2)} MB
-                <span className="mx-2">•</span>
-                Ready for AI processing
+
+                <span className="mx-2">
+                  •
+                </span>
+
+                {isVideo
+                  ? "Video audio will be extracted"
+                  : "Ready for AI processing"}
+
               </p>
 
             </div>
 
-            <div className="hidden rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400 sm:block">
-              Ready
-            </div>
-
           </div>
+
         </div>
 
-        {/* Processing Visualizer */}
-        {processing && (
-          <div className="mb-6 overflow-hidden rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] p-6">
+        {/* Video Information */}
 
-            <div className="mb-5 flex items-center justify-between">
+        {isVideo && (
+          <div className="mb-6 rounded-2xl border border-violet-400/10 bg-violet-500/[0.05] p-4">
+
+            <div className="flex items-start gap-3">
+
+              <span className="text-lg">
+                🎧
+              </span>
 
               <div>
-                <p className="font-semibold text-white">
-                  AI is cleaning your voice
+
+                <p className="text-sm font-semibold text-violet-300">
+                  Audio Only
                 </p>
 
-                <p className="mt-1 text-sm text-slate-400">
-                  Removing unwanted background noise...
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  Only the audio track will be processed.
+                  The original video will not be modified.
                 </p>
-              </div>
 
-              {/* Spinner */}
-              <div className="h-9 w-9 animate-spin rounded-full border-2 border-blue-400/20 border-t-blue-400" />
-
-            </div>
-
-            {/* Sound Wave */}
-            <div className="flex h-12 items-center justify-center gap-1.5">
-
-              {[4, 8, 14, 22, 30, 18, 26, 12, 20, 32, 16, 28, 10, 24, 14, 30, 18, 8, 22, 12].map(
-                (height, index) => (
-                  <div
-                    key={index}
-                    className="w-1.5 animate-pulse rounded-full bg-blue-400"
-                    style={{
-                      height: `${height}px`,
-                      animationDelay: `${index * 70}ms`,
-                    }}
-                  />
-                )
-              )}
-
-            </div>
-
-            {/* Processing Steps */}
-            <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] sm:text-xs">
-
-              <div className="rounded-lg bg-white/[0.04] p-2 text-blue-300">
-                ✓ Analyze Audio
-              </div>
-
-              <div className="rounded-lg bg-blue-500/10 p-2 text-blue-300">
-                ● Remove Noise
-              </div>
-
-              <div className="rounded-lg bg-white/[0.04] p-2 text-slate-500">
-                ○ Generate Voice
               </div>
 
             </div>
@@ -451,7 +889,34 @@ function NoiseReducer({ file, onCleanAudio }) {
           </div>
         )}
 
+        {/* Processing */}
+
+        {processing && (
+          <div className="mb-6 rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] p-6">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="font-semibold text-white">
+                  AI is cleaning your voice
+                </p>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Removing unwanted background noise...
+                </p>
+
+              </div>
+
+              <div className="h-9 w-9 animate-spin rounded-full border-2 border-blue-400/20 border-t-blue-400" />
+
+            </div>
+
+          </div>
+        )}
+
         {/* Success */}
+
         {completed && !processing && (
           <div className="mb-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.07] p-5">
 
@@ -476,132 +941,77 @@ function NoiseReducer({ file, onCleanAudio }) {
               </div>
 
               <div>
+
                 <p className="font-semibold text-emerald-300">
                   Noise removed successfully
                 </p>
 
                 <p className="mt-1 text-sm text-slate-400">
-                  Your cleaned voice is ready.
+                  Your clean audio is ready.
                 </p>
+
               </div>
 
             </div>
+
           </div>
         )}
 
         {/* Error */}
+
         {error && (
           <div className="mb-6 rounded-2xl border border-red-500/20 bg-red-500/[0.07] p-5">
 
-            <div className="flex gap-4">
+            <p className="font-semibold text-red-300">
+              Noise removal failed
+            </p>
 
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+            <p className="mt-1 break-words text-sm text-red-300/70">
+              {error}
+            </p>
 
-                <svg
-                  className="h-5 w-5 text-red-400"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v3m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3Z"
-                  />
-                </svg>
-
-              </div>
-
-              <div>
-                <p className="font-semibold text-red-300">
-                  Noise removal failed
-                </p>
-
-                <p className="mt-1 break-words text-sm text-red-300/70">
-                  {error}
-                </p>
-              </div>
-
-            </div>
           </div>
         )}
 
-        {/* Main Button */}
+        {/* Button */}
+
         <button
           onClick={handleRemoveNoise}
           disabled={processing}
-          className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-6 py-4 font-bold text-white shadow-xl shadow-blue-950/30 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-blue-900/40 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+          className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-6 py-4 font-bold text-white shadow-xl transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
 
-          {/* Button Shine */}
-          {!processing && (
-            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
-          )}
+          {processing
+            ? "Processing Audio..."
+            : completed
+            ? "Process Again"
+            : "Remove Noise with AI"}
 
-          <span className="relative flex items-center justify-center gap-3">
-
-            {processing ? (
-              <>
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Processing Audio...
-              </>
-            ) : completed ? (
-              <>
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m5 12 4 4L19 6"
-                  />
-                </svg>
-
-                Process Again
-              </>
-            ) : (
-              <>
-                <svg
-                  className="h-5 w-5 transition-transform duration-300 group-hover:scale-110"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 3v18m4-15v12m4-8v4M8 6v12M4 9v6"
-                  />
-                </svg>
-
-                Remove Noise with AI
-              </>
-            )}
-
-          </span>
         </button>
 
-        {/* Footer Info */}
+        {/* Footer */}
+
         <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-500">
 
-          <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Runs in your browser
+          <span>
+            ● Runs in your browser
           </span>
 
-          <span>•</span>
+          <span>
+            •
+          </span>
 
-          <span>DeepFilterNet3 AI</span>
+          <span>
+            DeepFilterNet3 AI
+          </span>
 
-          <span>•</span>
+          <span>
+            •
+          </span>
 
-          <span>48 kHz Processing</span>
+          <span>
+            48 kHz Processing
+          </span>
 
         </div>
 
