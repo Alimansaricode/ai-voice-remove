@@ -70,14 +70,30 @@ def login(user: LoginUser):
             "message": "Invalid email or password"
         }
 
-    payload = {
+    # Access Token - 30 minutes
+    access_payload = {
         "user_id": str(existing_user["_id"]),
         "email": existing_user["email"],
+        "type": "access",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
     }
 
     access_token = jwt.encode(
-        payload,
+        access_payload,
+        os.getenv("JWT_SECRET"),
+        algorithm="HS256"
+    )
+
+    # Refresh Token - 7 days
+    refresh_payload = {
+        "user_id": str(existing_user["_id"]),
+        "email": existing_user["email"],
+        "type": "refresh",
+        "exp": datetime.now(timezone.utc) + timedelta(days=7)
+    }
+
+    refresh_token = jwt.encode(
+        refresh_payload,
         os.getenv("JWT_SECRET"),
         algorithm="HS256"
     )
@@ -85,5 +101,55 @@ def login(user: LoginUser):
     return {
         "message": "Login successful",
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+
+@router.post("/refresh")
+def refresh_token(refresh_token: str):
+
+    try:
+        payload = jwt.decode(
+            refresh_token,
+            os.getenv("JWT_SECRET"),
+            algorithms=["HS256"]
+        )
+
+        print("REFRESH PAYLOAD:", payload)
+
+        if payload.get("type") != "refresh":
+            return {
+                "message": "Token type is not refresh"
+            }
+
+        new_access_payload = {
+            "user_id": payload["user_id"],
+            "email": payload["email"],
+            "type": "access",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
+        }
+
+        new_access_token = jwt.encode(
+            new_access_payload,
+            os.getenv("JWT_SECRET"),
+            algorithm="HS256"
+        )
+
+        return {
+            "message": "New access token generated",
+            "access_token": new_access_token,
+            "token_type": "bearer"
+        }
+
+    except jwt.ExpiredSignatureError:
+        return {
+            "message": "Refresh token has expired"
+        }
+
+    except jwt.InvalidTokenError as e:
+        print("JWT ERROR:", str(e))
+
+        return {
+            "message": "Invalid refresh token",
+            "error": str(e)
+        }
