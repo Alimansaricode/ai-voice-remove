@@ -10,6 +10,8 @@ MONGODB_URL = os.getenv("MONGO_URI")
 
 client = MongoClient(MONGODB_URL)
 
+print("MongoDB connected successfully")
+
 db = client["voiceremove"]
 
 users = db["users"]
