@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from app.auth.dependencies import get_current_user
+import jwt
+import os
+
 from app.database import users
 
 
@@ -9,36 +12,53 @@ router = APIRouter(
     tags=["User"]
 )
 
+security = HTTPBearer()
+
 
 @router.get("/profile")
-def profile(current_user=Depends(get_current_user)):
+def get_profile(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
 
-    user_id = current_user["user_id"]
+    token = credentials.credentials
 
-    from bson import ObjectId
+    try:
 
-    user = users.find_one({
-        "_id": ObjectId(user_id)
-    })
-
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found"
+        payload = jwt.decode(
+            token,
+            os.getenv("JWT_SECRET"),
+            algorithms=["HS256"]
         )
 
-    return {
-        "id": str(user["_id"]),
-        "name": user["name"],
-        "email": user["email"],
-        "role": user["role"]
-    }
+        user_id = payload["user_id"]
 
-# GET /user/profile
-#         ↓
-# get_current_user()
-#         ↓
-# JWT verify
-#         ↓
-# Valid token → profile दिखाई जाएगी
-# Invalid/missing token → 401
+        from bson import ObjectId
+
+        user = users.find_one({
+            "_id": ObjectId(user_id)
+        })
+
+        if not user:
+            return {
+                "message": "User not found"
+            }
+
+        return {
+            "id": str(user["_id"]),
+            "name": user.get("name"),
+            "email": user.get("email"),
+            "role": user.get("role"),
+            "auth_provider": user.get("auth_provider")
+        }
+
+    except jwt.ExpiredSignatureError:
+
+        return {
+            "message": "Token has expired"
+        }
+
+    except jwt.InvalidTokenError:
+
+        return {
+            "message": "Invalid token"
+        }
