@@ -24,7 +24,9 @@ export default function Login() {
       localStorage.setItem("refreshToken", data.refresh);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      navigate("/");
+      const redirectTo = location.state?.from || "/";
+navigate(redirectTo, { replace: true });
+
     } catch (err) {
       setError(err.message || "Login failed. Please try again.");
     } finally {

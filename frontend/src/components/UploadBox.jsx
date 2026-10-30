@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-function UploadBox({ onFileSelect }) {
+function UploadBox({ onFileSelect, onUploadClick }) {
   const fileInputRef = useRef(null);
   const [dragging, setDragging] = useState(false);
 
@@ -35,6 +35,12 @@ function UploadBox({ onFileSelect }) {
     }
   };
 
+  const handleUploadClick = () => {
+  if (onUploadClick) {
+    onUploadClick();
+  }
+};
+
   return (
     <div className="relative mx-auto w-full max-w-3xl">
 
@@ -45,7 +51,15 @@ function UploadBox({ onFileSelect }) {
 
       {/* Upload Card */}
       <div
-        onClick={() => fileInputRef.current?.click()}
+        
+        onClick={() => {
+  if (onUploadClick) {
+    onUploadClick();
+  } else {
+    fileInputRef.current?.click();
+  }
+}}
+
         onDragOver={(event) => {
           event.preventDefault();
           setDragging(true);

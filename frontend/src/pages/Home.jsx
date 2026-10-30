@@ -1,4 +1,7 @@
+import { useNavigate } from "react-router-dom";
+
 import { useEffect, useState } from "react";
+
 
 import UploadBox from "../components/UploadBox";
 import AudioPlayer from "../components/AudioPlayer";
@@ -29,6 +32,16 @@ function Home() {
       URL.revokeObjectURL(url);
     };
   }, [cleanAudio]);
+
+  const navigate = useNavigate();
+
+const isLoggedIn = Boolean(localStorage.getItem("accessToken"));
+
+const handleUploadClick = () => {
+  if (!isLoggedIn) {
+    navigate("/login", { state: { from: "/" } });
+  }
+};
 
   return (
     <>
@@ -96,7 +109,10 @@ function Home() {
           {/* Upload */}
 
           <div className="w-full">
-            <UploadBox onFileSelect={handleFileSelect} />
+            <UploadBox
+  onFileSelect={handleFileSelect}
+  onUploadClick={handleUploadClick}
+/>
           </div>
 
           {/* Processing */}
