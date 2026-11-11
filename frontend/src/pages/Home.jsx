@@ -40,7 +40,10 @@ const isLoggedIn = Boolean(localStorage.getItem("accessToken"));
 const handleUploadClick = () => {
   if (!isLoggedIn) {
     navigate("/login", { state: { from: "/" } });
+    return false;
   }
+
+  return true;
 };
 
   return (

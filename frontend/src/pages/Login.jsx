@@ -23,6 +23,7 @@ export default function Login() {
       localStorage.setItem("accessToken", data.access);
       localStorage.setItem("refreshToken", data.refresh);
       localStorage.setItem("user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("auth-change"));
 
       const redirectTo = location.state?.from || "/";
 navigate(redirectTo, { replace: true });

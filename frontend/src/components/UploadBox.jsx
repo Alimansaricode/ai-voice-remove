@@ -36,10 +36,12 @@ function UploadBox({ onFileSelect, onUploadClick }) {
   };
 
   const handleUploadClick = () => {
-  if (onUploadClick) {
-    onUploadClick();
-  }
-};
+    const shouldOpenPicker = onUploadClick ? onUploadClick() : true;
+
+    if (shouldOpenPicker) {
+      fileInputRef.current?.click();
+    }
+  };
 
   return (
     <div className="relative mx-auto w-full max-w-3xl">
@@ -52,13 +54,7 @@ function UploadBox({ onFileSelect, onUploadClick }) {
       {/* Upload Card */}
       <div
         
-        onClick={() => {
-  if (onUploadClick) {
-    onUploadClick();
-  } else {
-    fileInputRef.current?.click();
-  }
-}}
+        onClick={handleUploadClick}
 
         onDragOver={(event) => {
           event.preventDefault();
@@ -201,6 +197,7 @@ function UploadBox({ onFileSelect, onUploadClick }) {
           type="file"
           accept="audio/*,video/*"
           onChange={handleFileChange}
+          onClick={(event) => event.stopPropagation()}
           className="hidden"
         />
 
